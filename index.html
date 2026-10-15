@@ -98,18 +98,20 @@ label.f{display:block; font-size:15px; color:var(--muted); margin:10px 0 4px;}
 /* ====== 定数・初期データ ====== */
 const KEY = 'splat-kakegoe-v1';
 const GOAL = 7, WINDOW = 10;
-const DEFAULT_TASKS = ['味方、映ってる？','一番手で行かない','倒した、ランプ','ロングはどこ？','退路を先に塗る','深入りしない、手前で粘る','二対一、作れてる？','敵のSP、何持ってる？','塗れる、リスク取らない','敵の武器、全部言える？'];
+const DEFAULT_TASKS = ['イカランプ見て','スペシャル枚数','仲間アシストして','前線上げて','敵を探して'];
+const OLD_DEFAULT_TASKS = ['味方、映ってる？','一番手で行かない','倒した、ランプ','ロングはどこ？','退路を先に塗る','深入りしない、手前で粘る','二対一、作れてる？','敵のSP、何持ってる？','塗れる、リスク取らない','敵の武器、全部言える？'];
 
 function uid(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function nowISO(){ return new Date().toISOString(); }
 function defaults(){
   const tasks = DEFAULT_TASKS.map((text,i)=>({ id:'t'+(i+1), text, order:i+1, status:i===0?'active':'todo', graduatedAt:null, since:null }));
-  return { version:1,
+  return { version:2,
     settings:{ intervalMode:'random', min:60, max:120, fixed:60, speak:true, beep:true, volume:1, voiceName:'' },
     currentTaskId:'t1', tasks, matches:[], running:null };
 }
 function migrate(o){
   const d = defaults();
+  if ((o.version||1) < 2 && Array.isArray(o.tasks) && (o.matches||[]).length===0 && o.tasks.length===OLD_DEFAULT_TASKS.length && o.tasks.every((t,i)=>t.text===OLD_DEFAULT_TASKS[i])) o = Object.assign({}, o, { tasks:d.tasks, currentTaskId:'t1' });
   const s = Object.assign({}, d.settings, o.settings||{});
   const tasks = Array.isArray(o.tasks) ? o.tasks.map((t,i)=>({ id:String(t.id||uid('t')), text:String(t.text||''), order:Number(t.order||i+1), status:['active','done','todo'].includes(t.status)?t.status:'todo', graduatedAt:t.graduatedAt||null, since:t.since||null })) : d.tasks;
   const matches = Array.isArray(o.matches) ? o.matches.filter(m=>m&&m.taskId).map(m=>({ id:String(m.id||uid('m')), taskId:String(m.taskId), startedAt:m.startedAt||m.endedAt||nowISO(), endedAt:m.endedAt||nowISO(), calls:Number(m.calls||0), result:['o','d','x'].includes(m.result)?m.result:'d', win:['win','lose','none'].includes(m.win)?m.win:'none', note:String(m.note||'') })) : [];
@@ -117,7 +119,7 @@ function migrate(o){
   let currentTaskId = o.currentTaskId || null;
   if (!tasks.find(t=>t.id===currentTaskId)) currentTaskId = (tasks.find(t=>t.status==='active')||{}).id || null;
   tasks.forEach(t=>{ if (t.status==='active' && t.id!==currentTaskId) t.status='todo'; });
-  return { version:1, settings:s, currentTaskId, tasks, matches, running };
+  return { version:2, settings:s, currentTaskId, tasks, matches, running };
 }
 function load(){ try{ const raw=localStorage.getItem(KEY); if(raw) return migrate(JSON.parse(raw)); }catch(e){ console.warn('load failed', e); } return defaults(); }
 let S = load();
@@ -318,7 +320,8 @@ function vSettings(){
   <div class="card"><b>間隔</b>
     <div class="seg mt"><button class="${s.intervalMode==='random'?'sel':''}" data-act="imode" data-m="random">ランダム</button><button class="${s.intervalMode==='fixed'?'sel':''}" data-act="imode" data-m="fixed">固定</button></div>
     ${s.intervalMode==='random' ? `<div class="row mt"><div><label class="f">最小（秒）</label><input type="number" inputmode="numeric" min="10" max="600" value="${s.min}" data-field="min"></div><div><label class="f">最大（秒）</label><input type="number" inputmode="numeric" min="10" max="600" value="${s.max}" data-field="max"></div></div>`
-      : `<label class="f">秒</label><select data-field="fixed">${[30,45,60,90].map(v=>`<option value="${v}" ${s.fixed===v?'selected':''}>${v}秒</option>`).join('')}</select>`}
+      : `<label class="f">何秒ごと（10〜600）</label><input type="number" inputmode="numeric" min="10" max="600" value="${s.fixed}" data-field="fixed">
+         <div class="row mt">${[30,45,60,90,120].map(v=>`<button class="small ${s.fixed===v?'btn-accent':''}" data-act="fixedPreset" data-v="${v}">${v}秒</button>`).join('')}</div>`}
   </div>
   <div class="card"><b>音</b>
     <label class="toggle"><span>読み上げ</span><input type="checkbox" data-field="speak" ${s.speak?'checked':''}></label>
@@ -333,7 +336,7 @@ function vSettings(){
     <button class="mt" style="width:100%;color:var(--x)" data-act="wipe">全削除</button>
   </div>
   <div class="card"><b>使い方</b><ol style="margin:6px 0 0;padding-left:1.4em" class="small"><li>画面をつけたまま置く</li><li>試合開始で「開始」・終わったら「終了」</li><li>○△×だけでいい</li></ol></div>
-  <div class="muted small center">スプラ掛け声 v1</div>`;
+  <div class="muted small center">スプラ掛け声 v1.1</div>`;
 }
 
 /* ====== 操作 ====== */
@@ -367,6 +370,7 @@ document.addEventListener('click', e=>{
     case 'del': { const t=byId(id); if(!confirm(`「${t.text}」を削除しますか？（試合の履歴は残ります）`)) return;
       S.tasks=S.tasks.filter(x=>x.id!==id); if(S.currentTaskId===id){ S.currentTaskId=null; advanceAfter(t); } selTask=null; save(); render(); break; }
     case 'imode': S.settings.intervalMode=el.dataset.m; save(); render(); break;
+    case 'fixedPreset': S.settings.fixed=parseInt(el.dataset.v,10); save(); render(); break;
     case 'test': { ensureAudio(); const t=byId(S.currentTaskId); beep(); setTimeout(()=>speak(t?t.text:'課題がありません', true), S.settings.beep?260:0); break; }
     case 'export': exportJSON(); break;
     case 'import': document.getElementById('file').click(); break;
