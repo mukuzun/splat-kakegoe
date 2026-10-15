@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#fafafa">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="掛け声">
+<meta name="description" content="スプラトゥーン3のプレー中にランダム間隔で課題を読み上げる練習アプリ">
+<title>スプラ掛け声</title>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#fafafa; --card:#ffffff; --fg:#222; --muted:#777; --line:#e3e3e3;
+  --accent:#f0741e; --accent-soft:#ffe9d8;
+  --o:#2e9e5b; --d:#e0a800; --x:#d9433b; --empty:#ddd;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; font-size:18px; line-height:1.5;}
+body{min-height:100dvh; display:flex; flex-direction:column; -webkit-user-select:none; user-select:none;}
+input,textarea,select{-webkit-user-select:text; user-select:text;}
+#app{flex:1; display:flex; flex-direction:column; max-width:520px; width:100%; margin:0 auto; padding:16px 16px calc(84px + var(--safe-b));}
+h1{font-size:20px; margin:0 0 12px; color:var(--muted); font-weight:600;}
+h2{font-size:18px; margin:20px 0 8px;}
+.card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px;}
+.muted{color:var(--muted); font-size:15px;}
+.small{font-size:15px;}
+button{font:inherit; color:inherit; border:1px solid var(--line); background:var(--card); border-radius:14px; min-height:48px; padding:10px 16px; cursor:pointer; touch-action:manipulation;}
+button:active{transform:scale(.98); filter:brightness(.97);}
+button:disabled{opacity:.45; cursor:default;}
+.btn-accent{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700;}
+.btn-ghost{background:transparent; border-color:transparent; color:var(--muted); min-height:44px;}
+.btn-big{width:100%; min-height:33dvh; font-size:40px; border-radius:28px; letter-spacing:.1em;}
+.btn-end{background:#333; border-color:#333; color:#fff;}
+.row{display:flex; gap:10px; align-items:center;}
+.row > *{flex:1;}
+.task-now{font-size:30px; font-weight:800; line-height:1.3; margin:4px 0 8px; word-break:keep-all; overflow-wrap:anywhere;}
+.dots{display:flex; gap:6px; margin-top:8px;}
+.dot{width:24px; height:24px; border-radius:50%; background:var(--empty); display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-weight:700;}
+.dot.o{background:var(--o);} .dot.d{background:var(--d);} .dot.x{background:var(--x);}
+nav{position:fixed; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--line); display:flex; justify-content:space-around; padding:6px 0 calc(6px + var(--safe-b));}
+nav button{border:none; background:none; min-height:52px; min-width:72px; font-size:14px; color:var(--muted); display:flex; flex-direction:column; align-items:center; gap:2px; border-radius:10px;}
+nav button .ic{font-size:22px;}
+nav button.on{color:var(--accent); font-weight:700;}
+.big-time{font-size:56px; font-weight:800; font-variant-numeric:tabular-nums; text-align:center; margin:8px 0 0;}
+.calls{text-align:center; color:var(--muted); font-size:18px;}
+.rec-btns{display:flex; gap:10px;}
+.rec-btns button{flex:1; min-height:84px; font-size:40px; font-weight:800; border-width:3px;}
+.rec-btns .o{color:var(--o);} .rec-btns .d{color:var(--d);} .rec-btns .x{color:var(--x);}
+.rec-btns button.sel.o{background:var(--o); color:#fff; border-color:var(--o);}
+.rec-btns button.sel.d{background:var(--d); color:#fff; border-color:var(--d);}
+.rec-btns button.sel.x{background:var(--x); color:#fff; border-color:var(--x);}
+.seg{display:flex; border:1px solid var(--line); border-radius:14px; overflow:hidden;}
+.seg button{flex:1; border:none; border-radius:0; min-height:52px;}
+.seg button + button{border-left:1px solid var(--line);}
+.seg button.sel{background:var(--accent-soft); color:var(--accent); font-weight:700;}
+textarea,input[type=text],input[type=number],select{font:inherit; width:100%; border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:#fff; color:var(--fg); min-height:48px;}
+textarea{resize:vertical; min-height:72px;}
+.list{display:flex; flex-direction:column; gap:8px;}
+.item{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 14px;}
+.item.active{border-color:var(--accent); background:var(--accent-soft);}
+.item .t{display:flex; gap:10px; align-items:center; min-height:40px;}
+.item .t .txt{flex:1; font-weight:600;}
+.item .acts{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+.item .acts button{flex:1 1 30%; min-height:46px; font-size:15px; padding:8px;}
+.count{text-align:right; font-size:14px; color:var(--muted);}
+.count.over{color:var(--x);}
+.stat{display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:15px; margin-top:6px;}
+.stat b{font-size:18px;}
+.hist{font-size:15px; padding:10px 12px;}
+.hist .l1{display:flex; gap:8px; align-items:baseline;}
+.hist .res{font-weight:800; font-size:18px; width:1.4em;}
+.hist .res.o{color:var(--o);} .hist .res.d{color:var(--d);} .hist .res.x{color:var(--x);}
+.hist .note{color:var(--muted);}
+.hist.pressing{background:#ffecec;}
+.toggle{display:flex; justify-content:space-between; align-items:center; min-height:48px;}
+.toggle input{width:28px; height:28px; accent-color:var(--accent);}
+input[type=range]{width:100%; accent-color:var(--accent); height:40px;}
+.modal{position:fixed; inset:0; background:rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; padding:24px; z-index:10;}
+.modal .box{background:#fff; border-radius:20px; padding:28px 24px; text-align:center; max-width:360px; width:100%;}
+.modal .emoji{font-size:64px; line-height:1;}
+.notice{background:#fff7e8; border:1px solid #ffd9a8; border-radius:12px; padding:10px 12px; font-size:15px; margin-top:12px;}
+.center{text-align:center;}
+.mt{margin-top:12px;} .mb{margin-bottom:12px;}
+label.f{display:block; font-size:15px; color:var(--muted); margin:10px 0 4px;}
+.hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav id="nav"></nav>
+<script>
+'use strict';
+/* ====== 定数・初期データ ====== */
+const KEY = 'splat-kakegoe-v1';
+const GOAL = 7, WINDOW = 10;
+const DEFAULT_TASKS = ['味方、映ってる？','一番手で行かない','倒した、ランプ','ロングはどこ？','退路を先に塗る','深入りしない、手前で粘る','二対一、作れてる？','敵のSP、何持ってる？','塗れる、リスク取らない','敵の武器、全部言える？'];
+
+function uid(p){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function nowISO(){ return new Date().toISOString(); }
+function defaults(){
+  const tasks = DEFAULT_TASKS.map((text,i)=>({ id:'t'+(i+1), text, order:i+1, status:i===0?'active':'todo', graduatedAt:null, since:null }));
+  return { version:1,
+    settings:{ intervalMode:'random', min:60, max:120, fixed:60, speak:true, beep:true, volume:1, voiceName:'' },
+    currentTaskId:'t1', tasks, matches:[], running:null };
+}
+function migrate(o){
+  const d = defaults();
+  const s = Object.assign({}, d.settings, o.settings||{});
+  const tasks = Array.isArray(o.tasks) ? o.tasks.map((t,i)=>({ id:String(t.id||uid('t')), text:String(t.text||''), order:Number(t.order||i+1), status:['active','done','todo'].includes(t.status)?t.status:'todo', graduatedAt:t.graduatedAt||null, since:t.since||null })) : d.tasks;
+  const matches = Array.isArray(o.matches) ? o.matches.filter(m=>m&&m.taskId).map(m=>({ id:String(m.id||uid('m')), taskId:String(m.taskId), startedAt:m.startedAt||m.endedAt||nowISO(), endedAt:m.endedAt||nowISO(), calls:Number(m.calls||0), result:['o','d','x'].includes(m.result)?m.result:'d', win:['win','lose','none'].includes(m.win)?m.win:'none', note:String(m.note||'') })) : [];
+  const running = (o.running && o.running.taskId) ? { taskId:String(o.running.taskId), startedAt:o.running.startedAt||nowISO(), calls:Number(o.running.calls||0), nextAt:Number(o.running.nextAt||0) } : null;
+  let currentTaskId = o.currentTaskId || null;
+  if (!tasks.find(t=>t.id===currentTaskId)) currentTaskId = (tasks.find(t=>t.status==='active')||{}).id || null;
+  tasks.forEach(t=>{ if (t.status==='active' && t.id!==currentTaskId) t.status='todo'; });
+  return { version:1, settings:s, currentTaskId, tasks, matches, running };
+}
+function load(){ try{ const raw=localStorage.getItem(KEY); if(raw) return migrate(JSON.parse(raw)); }catch(e){ console.warn('load failed', e); } return defaults(); }
+let S = load();
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){ console.warn('save failed', e); } }
+
+/* ====== 集計 ====== */
+const byId = id => S.tasks.find(t=>t.id===id);
+const sortedTasks = () => S.tasks.slice().sort((a,b)=>a.order-b.order);
+function taskMatches(taskId){ return S.matches.filter(m=>m.taskId===taskId).sort((a,b)=>a.endedAt<b.endedAt?1:-1); }
+function recent(taskId){ const t=byId(taskId); return taskMatches(taskId).filter(m=>!t||!t.since||m.endedAt>t.since).slice(0,WINDOW); }
+function okCount(taskId){ return recent(taskId).filter(m=>m.result==='o').length; }
+function stats(ms){
+  const n=ms.length, o=ms.filter(m=>m.result==='o'), d=ms.filter(m=>m.result==='d'), x=ms.filter(m=>m.result==='x');
+  const wr = arr => { const dec=arr.filter(m=>m.win!=='none'); if(!dec.length) return null; return Math.round(100*dec.filter(m=>m.win==='win').length/dec.length); };
+  return { n, o:o.length, d:d.length, x:x.length, okRate:n?Math.round(100*o.length/n):null, winO:wr(o), winX:wr(x) };
+}
+function setCurrent(id){
+  S.tasks.forEach(t=>{ if(t.status==='active') t.status='todo'; });
+  const t=byId(id); if(!t) return;
+  if (t.status==='done') { t.since = nowISO(); t.graduatedAt=null; }
+  t.status='active'; S.currentTaskId=id;
+}
+function advanceAfter(task){
+  const next = sortedTasks().filter(t=>t.status==='todo' && t.id!==task.id)[0];
+  if (next){ next.status='active'; S.currentTaskId=next.id; } else S.currentTaskId=null;
+  return next||null;
+}
+function checkGraduate(taskId){
+  const t=byId(taskId); if(!t||t.status!=='active') return null;
+  if (okCount(taskId) < GOAL) return null;
+  t.status='done'; t.graduatedAt=nowISO();
+  const next = advanceAfter(t);
+  return { done:t, next };
+}
+
+/* ====== 音 ====== */
+let actx=null, voices=[];
+function ensureAudio(){ try{ if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){} }
+function beep(){
+  if(!S.settings.beep || !actx) return;
+  try{ const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.value=880;
+    const t=actx.currentTime, v=0.25*S.settings.volume; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(Math.max(v,0.0001),t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.2);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t+0.22); }catch(e){}
+}
+function loadVoices(){ try{ voices = speechSynthesis.getVoices().filter(v=>/^ja/i.test(v.lang)); }catch(e){ voices=[]; } }
+function speak(text, force){
+  if(!('speechSynthesis' in window)) return;
+  if(!S.settings.speak && !force) return;
+  const u = new SpeechSynthesisUtterance(text); u.lang='ja-JP'; u.rate=1.1; u.volume=S.settings.volume;
+  const v = voices.find(v=>v.name===S.settings.voiceName); if(v) u.voice=v;
+  if (speechSynthesis.speaking || speechSynthesis.pending){ speechSynthesis.cancel(); setTimeout(()=>speechSynthesis.speak(u), 60); }
+  else speechSynthesis.speak(u);
+}
+function cue(text){ beep(); if (S.settings.beep) setTimeout(()=>speak(text), 260); else speak(text); }
+if ('speechSynthesis' in window){ loadVoices(); speechSynthesis.onvoiceschanged = ()=>{ loadVoices(); if(view==='settings') render(); }; }
+
+/* ====== 画面ロック ====== */
+let wl=null;
+async function lockScreen(){ if(!('wakeLock' in navigator)) return; try{ wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release',()=>{ wl=null; }); }catch(e){ wl=null; } }
+function unlockScreen(){ try{ wl && wl.release(); }catch(e){} wl=null; }
+
+/* ====== タイマー（setTimeoutの連鎖） ====== */
+let timer=null, clock=null, paused=false;
+function pickInterval(){ const s=S.settings; if(s.intervalMode==='fixed') return s.fixed*1000; const a=Math.min(s.min,s.max), b=Math.max(s.min,s.max); return (a + Math.random()*(b-a))*1000; }
+function scheduleNext(){ clearTimeout(timer); if(!S.running||paused) return; const delay=Math.max(0, S.running.nextAt-Date.now()); timer=setTimeout(tick, delay); }
+function tick(){
+  if(!S.running||paused) return;
+  const t=byId(S.running.taskId); S.running.calls++; const iv=pickInterval(); S.running.nextAt=Date.now()+iv; save();
+  console.log('[kakegoe]', new Date().toLocaleTimeString(), 'call #'+S.running.calls, t?t.text:'', '→ next in '+Math.round(iv/1000)+'s');
+  cue(t?t.text:''); updateRunning(); scheduleNext();
+}
+function clockTick(){ clearTimeout(clock); if(!S.running) return; updateRunning(); clock=setTimeout(clockTick, 1000); }
+function startMatch(){
+  const t=byId(S.currentTaskId); if(!t) return;
+  ensureAudio();
+  speak(t.text); beep();            // ユーザー操作の同期処理内で最初の speak（iOS対策）
+  const iv=pickInterval();
+  S.running = { taskId:t.id, startedAt:nowISO(), calls:1, nextAt:Date.now()+iv }; save();
+  console.log('[kakegoe]', new Date().toLocaleTimeString(), 'start', t.text, '→ next in '+Math.round(iv/1000)+'s');
+  paused=false; lockScreen(); view='running'; render(); scheduleNext(); clockTick();
+}
+function resumeMatch(){ ensureAudio(); const t=byId(S.running.taskId); speak(t?t.text:'', false); paused=false; lockScreen(); if(Date.now()>=S.running.nextAt) tick(); else scheduleNext(); clockTick(); render(); }
+function endMatch(){
+  clearTimeout(timer); clearTimeout(clock); unlockScreen(); try{ speechSynthesis.cancel(); }catch(e){}
+  pending = { taskId:S.running.taskId, startedAt:S.running.startedAt, endedAt:nowISO(), calls:S.running.calls, result:null, win:'none', note:'' };
+  view='record'; render();
+}
+document.addEventListener('visibilitychange', ()=>{
+  if (document.visibilityState!=='visible' || !S.running || paused) return;
+  lockScreen(); if (Date.now()>=S.running.nextAt) tick(); else scheduleNext(); clockTick();
+});
+
+/* ====== 描画 ====== */
+let view = S.running ? 'running' : 'home';
+if (S.running) paused = true;    // 再読み込み後はタップで音を再開
+let pending=null, grad=null, selTask=null, editId=null, adding=false, pressTimer=null;
+const app=document.getElementById('app'), nav=document.getElementById('nav');
+const esc = s => String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtT = ms => { const s=Math.floor(ms/1000); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); };
+const fmtD = iso => { const d=new Date(iso); return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+const RES = {o:'○',d:'△',x:'×'}, WIN={win:'勝ち',lose:'負け',none:'—'};
+
+function dots(taskId){
+  const r = recent(taskId).slice().reverse();
+  let h='<div class="dots">';
+  for(let i=0;i<WINDOW;i++){ const m=r[i]; h+= m ? `<span class="dot ${m.result}">${RES[m.result]}</span>` : '<span class="dot"></span>'; }
+  return h+'</div>';
+}
+function render(){
+  const V = { home:vHome, running:vRunning, record:vRecord, tasks:vTasks, review:vReview, settings:vSettings }[view];
+  app.innerHTML = V() + (grad ? vGrad() : '');
+  nav.innerHTML = (view==='running'||view==='record') ? '' : [['home','🏠','ホーム'],['tasks','🪜','課題'],['review','📊','振り返り'],['settings','⚙️','設定']].map(([k,ic,l])=>`<button data-act="nav" data-v="${k}" class="${view===k?'on':''}"><span class="ic">${ic}</span>${l}</button>`).join('');
+  nav.classList.toggle('hidden', view==='running'||view==='record');
+  if (view==='running') updateRunning();
+}
+function vHome(){
+  const t=byId(S.currentTaskId);
+  if(!t) return `<h1>スプラ掛け声</h1><div class="card"><div class="task-now">課題がありません</div><div class="muted">全部卒業しました🎓 「課題」から追加するか、もう一度やる課題を選んでください。</div></div>
+    <button class="btn-accent" style="width:100%" data-act="nav" data-v="tasks">課題を選ぶ</button>`;
+  const ok=okCount(t.id);
+  return `<h1>スプラ掛け声</h1>
+  <div class="card"><div class="muted">いまの課題</div><div class="task-now">${esc(t.text)}</div>
+    <div class="small">直近${WINDOW}試合　○ <b>${ok}</b> ／ 目標 ${GOAL}</div>${dots(t.id)}</div>
+  <button class="btn-accent btn-big" data-act="start">開始</button>`;
+}
+function vRunning(){
+  const t=byId(S.running.taskId);
+  const wlNote = ('wakeLock' in navigator) ? '' : '<div class="notice">この端末は自動で画面を点けたままにできません。画面をつけたまま置いてください。</div>';
+  const resume = paused ? `<button class="btn-accent" style="width:100%;min-height:64px;font-size:20px" data-act="resume">▶ タップして音を再開</button><div class="muted center mt">再読み込みしたので、音を出すために1回タップが必要です</div>` : '';
+  return `<div class="card center"><div class="muted">いまの課題</div><div class="task-now">${esc(t?t.text:'')}</div></div>
+  <div class="big-time" id="elapsed">00:00</div><div class="calls" id="calls">鳴った回数 ${S.running.calls}</div>
+  ${resume}${wlNote}<div style="flex:1"></div>
+  <button class="btn-end btn-big" style="min-height:26dvh;font-size:36px" data-act="end">終了</button>`;
+}
+function updateRunning(){ if(!S.running) return; const e=document.getElementById('elapsed'), c=document.getElementById('calls'); if(e) e.textContent=fmtT(Date.now()-new Date(S.running.startedAt).getTime()); if(c) c.textContent='鳴った回数 '+S.running.calls; }
+function vRecord(){
+  const t=byId(pending.taskId); const p=pending;
+  return `<h1>記録</h1><div class="card"><div class="muted">課題</div><div style="font-weight:700;font-size:22px">${esc(t?t.text:'（削除済み）')}</div><div class="muted small">${fmtT(new Date(p.endedAt)-new Date(p.startedAt))}・${p.calls}回</div></div>
+  <h2>課題できた？</h2><div class="rec-btns">
+    <button class="o ${p.result==='o'?'sel':''}" data-act="res" data-r="o">○</button>
+    <button class="d ${p.result==='d'?'sel':''}" data-act="res" data-r="d">△</button>
+    <button class="x ${p.result==='x'?'sel':''}" data-act="res" data-r="x">×</button></div>
+  <h2>結果</h2><div class="seg">
+    <button class="${p.win==='win'?'sel':''}" data-act="win" data-w="win">勝ち</button>
+    <button class="${p.win==='lose'?'sel':''}" data-act="win" data-w="lose">負け</button>
+    <button class="${p.win==='none'?'sel':''}" data-act="win" data-w="none">入れない</button></div>
+  <h2>一言（任意）</h2><textarea id="note" placeholder="例：カバー遅かった">${esc(p.note)}</textarea>
+  <button class="btn-accent mt" style="width:100%;min-height:60px;font-size:20px" data-act="saveMatch" ${p.result?'':'disabled'}>保存</button>
+  <button class="btn-ghost mt" style="width:100%" data-act="discard">記録せずに閉じる</button>`;
+}
+function vGrad(){
+  return `<div class="modal"><div class="box"><div class="emoji">🎓</div><h2>卒業！</h2><div>「${esc(grad.done.text)}」</div>
+  <div class="mt">${grad.next?`次の課題：<b>${esc(grad.next.text)}</b>`:'課題はこれで全部です。お疲れさま！'}</div>
+  <button class="btn-accent mt" style="width:100%" data-act="gradOk">OK</button></div></div>`;
+}
+function taskEditor(t){
+  const val = t ? t.text : '';
+  return `<div class="mt"><input type="text" id="taskText" value="${esc(val)}" maxlength="60" placeholder="例：味方、映ってる？" data-act="count"><div class="count" id="cnt">${val.length} 文字（20文字以内が目安）</div>
+  <div class="row mt"><button class="btn-accent" data-act="${t?'saveEdit':'saveAdd'}" data-id="${t?t.id:''}">保存</button><button data-act="cancelEdit">キャンセル</button></div></div>`;
+}
+function vTasks(){
+  const list = sortedTasks();
+  const items = list.map((t,i)=>{
+    const ic = t.status==='done'?'🎓':t.status==='active'?'▶':'○';
+    const ok = okCount(t.id);
+    const open = selTask===t.id;
+    let acts='';
+    if (open && editId===t.id) acts = taskEditor(t);
+    else if (open) acts = `<div class="acts">
+      ${t.status!=='active'?`<button data-act="setCurrent" data-id="${t.id}">${t.status==='done'?'🔁 もう一度やる':'▶ 今の課題にする'}</button>`:''}
+      <button data-act="edit" data-id="${t.id}">✏️ 編集</button>
+      <button data-act="up" data-id="${t.id}" ${i===0?'disabled':''}>↑ 上へ</button>
+      <button data-act="down" data-id="${t.id}" ${i===list.length-1?'disabled':''}>↓ 下へ</button>
+      <button data-act="del" data-id="${t.id}">🗑 削除</button></div>`;
+    return `<div class="item ${t.status==='active'?'active':''}"><div class="t" data-act="sel" data-id="${t.id}"><span>${ic}</span><span class="txt">${esc(t.text)}</span><span class="muted small">${t.status==='done'?'済':ok+'/'+GOAL}</span></div>${acts}</div>`;
+  }).join('');
+  return `<h1>課題（上から順に進む）</h1><div class="list">${items}</div>
+  <div class="card mt">${adding ? taskEditor(null) : '<button style="width:100%" data-act="add">＋ 課題を追加</button>'}</div>
+  <div class="muted small">🎓 卒業済み　▶ 今ここ　○ 未着手。タップで操作。</div>`;
+}
+function vReview(){
+  const all = stats(S.matches);
+  const tasks = sortedTasks().map(t=>{ const s=stats(taskMatches(t.id)); if(!s.n) return ''; const r=recent(t.id); const rr = r.length?Math.round(100*r.filter(m=>m.result==='o').length/r.length):null;
+    return `<div class="card"><div style="font-weight:700">${t.status==='done'?'🎓 ':''}${esc(t.text)}</div>
+      <div class="stat"><div>試合数 <b>${s.n}</b></div><div>○${s.o} △${s.d} ×${s.x}</div>
+      <div>直近${WINDOW}の○率 <b>${rr==null?'—':rr+'%'}</b></div><div></div>
+      <div>○の試合の勝率 <b>${s.winO==null?'—':s.winO+'%'}</b></div><div>×の試合の勝率 <b>${s.winX==null?'—':s.winX+'%'}</b></div></div></div>`; }).join('');
+  const hist = S.matches.slice().sort((a,b)=>a.endedAt<b.endedAt?1:-1).map(m=>{ const t=byId(m.taskId);
+    return `<div class="item hist" data-mid="${m.id}"><div class="l1"><span class="res ${m.result}">${RES[m.result]}</span><span>${WIN[m.win]}</span><span class="muted">${fmtD(m.endedAt)}</span><span class="muted" style="flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t?t.text:'（削除済み）')}</span></div>${m.note?`<div class="note">${esc(m.note)}</div>`:''}</div>`; }).join('');
+  return `<h1>振り返り</h1><div class="card"><b>全体</b>　試合数 ${all.n}　○率 ${all.okRate==null?'—':all.okRate+'%'}</div>
+  ${tasks || '<div class="muted">まだ試合がありません</div>'}
+  <h2>試合の履歴</h2><div class="muted small mb">行を長押しで削除</div><div class="list">${hist || '<div class="muted">まだありません</div>'}</div>`;
+}
+function vSettings(){
+  const s=S.settings;
+  const vopts = voices.length ? voices.map(v=>`<option value="${esc(v.name)}" ${v.name===s.voiceName?'selected':''}>${esc(v.name)}</option>`).join('') : '<option value="">（日本語の声が見つかりません）</option>';
+  return `<h1>設定</h1>
+  <div class="card"><b>間隔</b>
+    <div class="seg mt"><button class="${s.intervalMode==='random'?'sel':''}" data-act="imode" data-m="random">ランダム</button><button class="${s.intervalMode==='fixed'?'sel':''}" data-act="imode" data-m="fixed">固定</button></div>
+    ${s.intervalMode==='random' ? `<div class="row mt"><div><label class="f">最小（秒）</label><input type="number" inputmode="numeric" min="10" max="600" value="${s.min}" data-field="min"></div><div><label class="f">最大（秒）</label><input type="number" inputmode="numeric" min="10" max="600" value="${s.max}" data-field="max"></div></div>`
+      : `<label class="f">秒</label><select data-field="fixed">${[30,45,60,90].map(v=>`<option value="${v}" ${s.fixed===v?'selected':''}>${v}秒</option>`).join('')}</select>`}
+  </div>
+  <div class="card"><b>音</b>
+    <label class="toggle"><span>読み上げ</span><input type="checkbox" data-field="speak" ${s.speak?'checked':''}></label>
+    <label class="toggle"><span>ピッ（電子音）</span><input type="checkbox" data-field="beep" ${s.beep?'checked':''}></label>
+    <label class="f">音量 ${Math.round(s.volume*100)}%</label><input type="range" min="0.1" max="1" step="0.1" value="${s.volume}" data-field="volume">
+    <label class="f">声</label><select data-field="voiceName"><option value="" ${!s.voiceName?'selected':''}>端末の既定</option>${vopts}</select>
+    <button class="mt" style="width:100%" data-act="test">🔊 テスト再生（今の課題を読む）</button>
+  </div>
+  <div class="card"><b>データ</b><div class="muted small">データはこの端末の中だけに保存されます</div>
+    <div class="row mt"><button data-act="export">書き出し</button><button data-act="import">読み込み</button></div>
+    <input type="file" id="file" accept="application/json,.json" class="hidden">
+    <button class="mt" style="width:100%;color:var(--x)" data-act="wipe">全削除</button>
+  </div>
+  <div class="card"><b>使い方</b><ol style="margin:6px 0 0;padding-left:1.4em" class="small"><li>画面をつけたまま置く</li><li>試合開始で「開始」・終わったら「終了」</li><li>○△×だけでいい</li></ol></div>
+  <div class="muted small center">スプラ掛け声 v1</div>`;
+}
+
+/* ====== 操作 ====== */
+document.addEventListener('click', e=>{
+  const el = e.target.closest('[data-act]'); if(!el) return;
+  const act=el.dataset.act, id=el.dataset.id;
+  switch(act){
+    case 'nav': view=el.dataset.v; selTask=null; editId=null; adding=false; render(); break;
+    case 'start': startMatch(); break;
+    case 'resume': resumeMatch(); break;
+    case 'end': endMatch(); break;
+    case 'res': pending.result=el.dataset.r; pending.note=val('note'); render(); break;
+    case 'win': pending.win=el.dataset.w; pending.note=val('note'); render(); break;
+    case 'saveMatch': {
+      if(!pending.result) return; pending.note=val('note').trim();
+      S.matches.push({ id:uid('m'), taskId:pending.taskId, startedAt:pending.startedAt, endedAt:pending.endedAt, calls:pending.calls, result:pending.result, win:pending.win, note:pending.note });
+      S.running=null; grad = checkGraduate(pending.taskId); pending=null; save(); view='home'; render(); break; }
+    case 'discard': S.running=null; pending=null; save(); view='home'; render(); break;
+    case 'gradOk': grad=null; render(); break;
+    case 'sel': selTask = (selTask===id)?null:id; editId=null; adding=false; render(); break;
+    case 'setCurrent': setCurrent(id); save(); selTask=null; render(); break;
+    case 'edit': editId=id; adding=false; render(); setTimeout(()=>{ const i=document.getElementById('taskText'); i&&i.focus(); },0); break;
+    case 'add': adding=true; editId=null; selTask=null; render(); setTimeout(()=>{ const i=document.getElementById('taskText'); i&&i.focus(); },0); break;
+    case 'cancelEdit': editId=null; adding=false; render(); break;
+    case 'saveEdit': { const txt=val('taskText').trim(); if(!txt) return; byId(id).text=txt; editId=null; save(); render(); break; }
+    case 'saveAdd': { const txt=val('taskText').trim(); if(!txt) return; const order=Math.max(0,...S.tasks.map(t=>t.order))+1;
+      const t={ id:uid('t'), text:txt, order, status:'todo', graduatedAt:null, since:null }; S.tasks.push(t);
+      if(!S.currentTaskId){ t.status='active'; S.currentTaskId=t.id; } adding=false; save(); render(); break; }
+    case 'up': case 'down': { const list=sortedTasks(); const i=list.findIndex(t=>t.id===id); const j=act==='up'?i-1:i+1; if(j<0||j>=list.length) return;
+      const a=list[i].order; list[i].order=list[j].order; list[j].order=a; save(); render(); break; }
+    case 'del': { const t=byId(id); if(!confirm(`「${t.text}」を削除しますか？（試合の履歴は残ります）`)) return;
+      S.tasks=S.tasks.filter(x=>x.id!==id); if(S.currentTaskId===id){ S.currentTaskId=null; advanceAfter(t); } selTask=null; save(); render(); break; }
+    case 'imode': S.settings.intervalMode=el.dataset.m; save(); render(); break;
+    case 'test': { ensureAudio(); const t=byId(S.currentTaskId); beep(); setTimeout(()=>speak(t?t.text:'課題がありません', true), S.settings.beep?260:0); break; }
+    case 'export': exportJSON(); break;
+    case 'import': document.getElementById('file').click(); break;
+    case 'wipe': { if(!confirm('全てのデータを削除します。よろしいですか？')) return; if(!confirm('本当に削除しますか？ この操作は取り消せません。')) return;
+      clearTimeout(timer); clearTimeout(clock); S=defaults(); save(); selTask=null; view='home'; render(); alert('削除しました'); break; }
+  }
+});
+function val(id){ const el=document.getElementById(id); return el?el.value:''; }
+app.addEventListener('input', e=>{
+  if (e.target.id==='taskText'){ const n=e.target.value.length; const c=document.getElementById('cnt'); if(c){ c.textContent=n+' 文字（20文字以内が目安）'; c.classList.toggle('over', n>20); } }
+  if (e.target.id==='note' && pending) pending.note=e.target.value;
+});
+app.addEventListener('change', e=>{
+  const f=e.target.dataset.field;
+  if (f){
+    const s=S.settings;
+    if (f==='min'||f==='max'||f==='fixed'){ let v=parseInt(e.target.value,10); if(isNaN(v)) v=60; v=Math.min(600,Math.max(10,v)); s[f]=v; if(f!=='fixed' && s.min>s.max){ if(f==='min') s.max=s.min; else s.min=s.max; } }
+    else if (f==='volume') s.volume=parseFloat(e.target.value);
+    else if (f==='speak'||f==='beep') s[f]=e.target.checked;
+    else if (f==='voiceName') s.voiceName=e.target.value;
+    save(); render(); return;
+  }
+  if (e.target.id==='file' && e.target.files[0]) importJSON(e.target.files[0]);
+});
+/* 履歴の長押し削除 */
+function pressStart(e){ const row=e.target.closest('.hist[data-mid]'); if(!row) return; clearTimeout(pressTimer); row.classList.add('pressing');
+  pressTimer=setTimeout(()=>{ row.classList.remove('pressing'); const mid=row.dataset.mid; const m=S.matches.find(x=>x.id===mid); if(!m) return;
+    if(confirm('この試合の記録を削除しますか？')){ S.matches=S.matches.filter(x=>x.id!==mid); save(); render(); } }, 600); }
+function pressEnd(){ clearTimeout(pressTimer); document.querySelectorAll('.hist.pressing').forEach(r=>r.classList.remove('pressing')); }
+app.addEventListener('pointerdown', pressStart); ['pointerup','pointercancel','pointerleave','scroll'].forEach(ev=>app.addEventListener(ev, pressEnd, true));
+app.addEventListener('contextmenu', e=>{ if(e.target.closest('.hist')) e.preventDefault(); });
+
+/* ====== JSON 書き出し／読み込み ====== */
+async function exportJSON(){
+  const name='splat-kakegoe-'+new Date().toISOString().slice(0,10)+'.json';
+  const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+  const file = new File([blob], name, {type:'application/json'});
+  if (navigator.canShare && navigator.canShare({files:[file]})){ try{ await navigator.share({files:[file], title:'スプラ掛け声 データ'}); return; }catch(e){ if(e.name==='AbortError') return; } }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function importJSON(file){
+  const r=new FileReader();
+  r.onload=()=>{ try{ const o=JSON.parse(r.result); if(!o||!Array.isArray(o.tasks)) throw new Error('形式が違います');
+      if(!confirm(`読み込むと今のデータは置き換わります。\n課題 ${o.tasks.length}件・試合 ${(o.matches||[]).length}件\nよろしいですか？`)) return;
+      clearTimeout(timer); clearTimeout(clock); S=migrate(o); S.running=null; save(); view='home'; render(); alert('読み込みました'); }
+    catch(e){ alert('読み込めませんでした：'+e.message); }
+    finally{ const f=document.getElementById('file'); if(f) f.value=''; } };
+  r.readAsText(file);
+}
+
+/* ====== manifest・アイコン（data URI） ====== */
+(function(){
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="40" fill="#f0741e"/><text x="96" y="124" font-size="92" font-family="system-ui,sans-serif" font-weight="700" fill="#fff" text-anchor="middle">声</text></svg>`;
+  const svgURI = 'data:image/svg+xml,'+encodeURIComponent(svg);
+  const icon=document.createElement('link'); icon.rel='icon'; icon.href=svgURI; document.head.appendChild(icon);
+  try{ const c=document.createElement('canvas'); c.width=c.height=180; const g=c.getContext('2d'); g.fillStyle='#f0741e'; g.beginPath(); g.roundRect(0,0,180,180,38); g.fill();
+    g.fillStyle='#fff'; g.font='700 86px system-ui,sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('声',90,96);
+    const a=document.createElement('link'); a.rel='apple-touch-icon'; a.href=c.toDataURL('image/png'); document.head.appendChild(a); }catch(e){}
+  const manifest = { name:'スプラ掛け声', short_name:'掛け声', start_url:location.href.split('#')[0], display:'standalone', background_color:'#fafafa', theme_color:'#fafafa', lang:'ja',
+    icons:[{ src:svgURI, sizes:'any', type:'image/svg+xml', purpose:'any' }] };
+  const m=document.createElement('link'); m.rel='manifest'; m.href='data:application/manifest+json,'+encodeURIComponent(JSON.stringify(manifest)); document.head.appendChild(m);
+})();
+
+render();
+if (S.running) clockTick();
+window.__kakegoe = { get S(){ return S; }, set S(v){ S=v; }, save, render, tick, startMatch, endMatch, checkGraduate, okCount, recent, stats, defaults, migrate, pickInterval };
+</script>
+</body>
+</html>
