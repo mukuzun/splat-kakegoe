@@ -106,7 +106,7 @@ function nowISO(){ return new Date().toISOString(); }
 function defaults(){
   const tasks = DEFAULT_TASKS.map((text,i)=>({ id:'t'+(i+1), text, order:i+1, status:i===0?'active':'todo', graduatedAt:null, since:null }));
   return { version:2,
-    settings:{ intervalMode:'random', min:60, max:120, fixed:60, speak:true, beep:true, volume:1, voiceName:'' },
+    settings:{ intervalMode:'random', min:60, max:120, fixed:60, speak:true, beep:true, volume:1, beepVolume:1, beepDouble:true, repeat:false, voiceName:'' },
     currentTaskId:'t1', tasks, matches:[], running:null };
 }
 function migrate(o){
@@ -158,12 +158,17 @@ function checkGraduate(taskId){
 /* ====== 音 ====== */
 let actx=null, voices=[];
 function ensureAudio(){ try{ if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){} }
+function pip(t, len){
+  const o=actx.createOscillator(), g=actx.createGain(); o.type='square'; o.frequency.value=1000;
+  const v=Math.max(0.0001, 0.6*(S.settings.beepVolume??1));
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(v,t+0.01); g.gain.setValueAtTime(v,t+len-0.03); g.gain.exponentialRampToValueAtTime(0.0001,t+len);
+  o.connect(g).connect(actx.destination); o.start(t); o.stop(t+len+0.02);
+}
 function beep(){
   if(!S.settings.beep || !actx) return;
-  try{ const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.value=880;
-    const t=actx.currentTime, v=0.25*S.settings.volume; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(Math.max(v,0.0001),t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+0.2);
-    o.connect(g).connect(actx.destination); o.start(t); o.stop(t+0.22); }catch(e){}
+  try{ const t=actx.currentTime; if(S.settings.beepDouble){ pip(t,0.14); pip(t+0.2,0.14); } else pip(t,0.22); }catch(e){}
 }
+const BEEP_LEN = () => S.settings.beepDouble ? 420 : 300;
 function loadVoices(){ try{ voices = speechSynthesis.getVoices().filter(v=>/^ja/i.test(v.lang)); }catch(e){ voices=[]; } }
 function speak(text, force){
   if(!('speechSynthesis' in window)) return;
@@ -173,7 +178,7 @@ function speak(text, force){
   if (speechSynthesis.speaking || speechSynthesis.pending){ speechSynthesis.cancel(); setTimeout(()=>speechSynthesis.speak(u), 60); }
   else speechSynthesis.speak(u);
 }
-function cue(text){ beep(); if (S.settings.beep) setTimeout(()=>speak(text), 260); else speak(text); }
+function cue(text){ beep(); const say=()=>speak(S.settings.repeat ? text+'。'+text : text); if (S.settings.beep) setTimeout(say, BEEP_LEN()); else say(); }
 if ('speechSynthesis' in window){ loadVoices(); speechSynthesis.onvoiceschanged = ()=>{ loadVoices(); if(view==='settings') render(); }; }
 
 /* ====== 画面ロック ====== */
@@ -195,7 +200,7 @@ function clockTick(){ clearTimeout(clock); if(!S.running) return; updateRunning(
 function startMatch(){
   const t=byId(S.currentTaskId); if(!t) return;
   ensureAudio();
-  speak(t.text); beep();            // ユーザー操作の同期処理内で最初の speak（iOS対策）
+  speak(t.text); beep();            // ユーザー操作の同期処理内で最初の speak（iOS対策）。2回読みは次回以降
   const iv=pickInterval();
   S.running = { taskId:t.id, startedAt:nowISO(), calls:1, nextAt:Date.now()+iv }; save();
   console.log('[kakegoe]', new Date().toLocaleTimeString(), 'start', t.text, '→ next in '+Math.round(iv/1000)+'s');
@@ -325,8 +330,11 @@ function vSettings(){
   </div>
   <div class="card"><b>音</b>
     <label class="toggle"><span>読み上げ</span><input type="checkbox" data-field="speak" ${s.speak?'checked':''}></label>
+    <label class="toggle"><span>2回続けて読む</span><input type="checkbox" data-field="repeat" ${s.repeat?'checked':''}></label>
+    <label class="f">読み上げの音量 ${Math.round(s.volume*100)}%（100%＝端末の音量そのもの。もっと大きくしたい時は端末側の音量を上げてください）</label><input type="range" min="0.1" max="1" step="0.1" value="${s.volume}" data-field="volume">
     <label class="toggle"><span>ピッ（電子音）</span><input type="checkbox" data-field="beep" ${s.beep?'checked':''}></label>
-    <label class="f">音量 ${Math.round(s.volume*100)}%</label><input type="range" min="0.1" max="1" step="0.1" value="${s.volume}" data-field="volume">
+    <label class="toggle"><span>ピピッ（2連にして目立たせる）</span><input type="checkbox" data-field="beepDouble" ${s.beepDouble?'checked':''}></label>
+    <label class="f">ピッの音量 ${Math.round((s.beepVolume??1)*100)}%</label><input type="range" min="0.1" max="1" step="0.1" value="${s.beepVolume??1}" data-field="beepVolume">
     <label class="f">声</label><select data-field="voiceName"><option value="" ${!s.voiceName?'selected':''}>端末の既定</option>${vopts}</select>
     <button class="mt" style="width:100%" data-act="test">🔊 テスト再生（今の課題を読む）</button>
   </div>
@@ -337,7 +345,7 @@ function vSettings(){
     <button class="mt" style="width:100%;color:var(--x)" data-act="wipe">全削除</button>
   </div>
   <div class="card"><b>使い方</b><ol style="margin:6px 0 0;padding-left:1.4em" class="small"><li>画面をつけたまま置く</li><li>試合開始で「開始」・終わったら「終了」</li><li>○△×だけでいい</li></ol></div>
-  <div class="muted small center">スプラ掛け声 v1.1</div>`;
+  <div class="muted small center">スプラ掛け声 v1.2</div>`;
 }
 
 /* ====== 操作 ====== */
@@ -372,7 +380,7 @@ document.addEventListener('click', e=>{
       S.tasks=S.tasks.filter(x=>x.id!==id); if(S.currentTaskId===id){ S.currentTaskId=null; advanceAfter(t); } selTask=null; save(); render(); break; }
     case 'imode': S.settings.intervalMode=el.dataset.m; save(); render(); break;
     case 'fixedPreset': S.settings.fixed=parseInt(el.dataset.v,10); save(); render(); break;
-    case 'test': { ensureAudio(); const t=byId(S.currentTaskId); beep(); setTimeout(()=>speak(t?t.text:'課題がありません', true), S.settings.beep?260:0); break; }
+    case 'test': { ensureAudio(); const t=byId(S.currentTaskId); const txt=t?t.text:'課題がありません'; beep(); setTimeout(()=>speak(S.settings.repeat?txt+'。'+txt:txt, true), S.settings.beep?BEEP_LEN():0); break; }
     case 'resetTasks': { if(!confirm('課題を初期の5つ（イカランプ見て／スペシャル枚数／仲間アシストして／前線上げて／敵を探して）に戻します。今の課題一覧は消え、試合の記録は「削除済み」の課題として残ります。よろしいですか？')) return;
       S.tasks = DEFAULT_TASKS.map((text,i)=>({ id:uid('t'), text, order:i+1, status:i===0?'active':'todo', graduatedAt:null, since:null })); S.currentTaskId=S.tasks[0].id; save(); view='home'; render(); break; }
     case 'export': exportJSON(); break;
@@ -391,8 +399,8 @@ app.addEventListener('change', e=>{
   if (f){
     const s=S.settings;
     if (f==='min'||f==='max'||f==='fixed'){ let v=parseInt(e.target.value,10); if(isNaN(v)) v=60; v=Math.min(600,Math.max(10,v)); s[f]=v; if(f!=='fixed' && s.min>s.max){ if(f==='min') s.max=s.min; else s.min=s.max; } }
-    else if (f==='volume') s.volume=parseFloat(e.target.value);
-    else if (f==='speak'||f==='beep') s[f]=e.target.checked;
+    else if (f==='volume'||f==='beepVolume') s[f]=parseFloat(e.target.value);
+    else if (f==='speak'||f==='beep'||f==='beepDouble'||f==='repeat') s[f]=e.target.checked;
     else if (f==='voiceName') s.voiceName=e.target.value;
     save(); render(); return;
   }
