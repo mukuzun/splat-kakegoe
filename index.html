@@ -98,6 +98,8 @@ label.f{display:block; font-size:15px; color:var(--muted); margin:10px 0 4px;}
 'use strict';
 /* ====== 定数・初期データ ====== */
 const KEY = 'splat-kakegoe-v1';
+const UNLOCK_KEY = 'splat-kakegoe-unlocked';
+const GATE_HASH = '679637267e846ddd9d41d668b600a46e6293597acc5e95136641b190feb42638';   // 合言葉の SHA-256（平文は入れない）
 const GOAL = 7, WINDOW = 10;
 const DEFAULT_TASKS = ['イカランプ見て','スペシャル枚数','仲間アシストして','前線上げて','敵を探して'];
 const OLD_DEFAULT_TASKS = ['味方、映ってる？','一番手で行かない','倒した、ランプ','ロングはどこ？','退路を先に塗る','深入りしない、手前で粘る','二対一、作れてる？','敵のSP、何持ってる？','塗れる、リスク取らない','敵の武器、全部言える？'];
@@ -226,7 +228,8 @@ document.addEventListener('visibilitychange', ()=>{
 });
 
 /* ====== 描画 ====== */
-let view = S.running ? 'running' : 'home';
+let unlocked=false; try{ unlocked = localStorage.getItem(UNLOCK_KEY)==='1'; }catch(e){}
+let view = !unlocked ? 'gate' : (S.running ? 'running' : 'home');
 if (S.running) paused = true;    // 再読み込み後はタップで音を再開
 let pending=null, grad=null, selTask=null, editId=null, adding=false, pressTimer=null;
 const app=document.getElementById('app'), nav=document.getElementById('nav');
@@ -242,11 +245,26 @@ function dots(taskId){
   return h+'</div>';
 }
 function render(){
-  const V = { home:vHome, running:vRunning, record:vRecord, tasks:vTasks, review:vReview, help:vHelp, settings:vSettings }[view];
+  const V = { gate:vGate, home:vHome, running:vRunning, record:vRecord, tasks:vTasks, review:vReview, help:vHelp, settings:vSettings }[view];
   app.innerHTML = V() + (grad ? vGrad() : '');
-  nav.innerHTML = (view==='running'||view==='record') ? '' : [['home','🏠','ホーム'],['tasks','🪜','課題'],['review','📊','振り返り'],['help','❓','使い方'],['settings','⚙️','設定']].map(([k,ic,l])=>`<button data-act="nav" data-v="${k}" class="${view===k?'on':''}"><span class="ic">${ic}</span>${l}</button>`).join('');
-  nav.classList.toggle('hidden', view==='running'||view==='record');
+  nav.innerHTML = (view==='running'||view==='record'||view==='gate') ? '' : [['home','🏠','ホーム'],['tasks','🪜','課題'],['review','📊','振り返り'],['help','❓','使い方'],['settings','⚙️','設定']].map(([k,ic,l])=>`<button data-act="nav" data-v="${k}" class="${view===k?'on':''}"><span class="ic">${ic}</span>${l}</button>`).join('');
+  nav.classList.toggle('hidden', view==='running'||view==='record'||view==='gate');
   if (view==='running') updateRunning();
+}
+function vGate(){
+  return `<h1>スプラ掛け声</h1>
+  <div class="card"><div class="task-now" style="font-size:22px">合言葉を入れてください</div><div class="muted small">初回だけ。次からは聞きません</div>
+    <input type="password" id="gatePw" placeholder="合言葉" autocomplete="off" style="margin-top:12px;font-size:20px" enterkeyhint="go">
+    <div id="gateMsg" class="small" style="color:var(--x);min-height:1.5em;margin-top:6px"></div>
+    <button class="btn-accent" style="width:100%;min-height:56px;font-size:20px" data-act="gate">入る</button></div>`;
+}
+async function tryUnlock(){
+  const pw=val('gatePw'); const msg=document.getElementById('gateMsg'); if(!pw) return;
+  let hex='';
+  try{ const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw)); hex=[...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+  catch(e){ if(msg) msg.textContent='この開き方では確認できません（https で開いてください）'; return; }
+  if (hex===GATE_HASH){ unlocked=true; try{ localStorage.setItem(UNLOCK_KEY,'1'); }catch(e){} view = S.running ? 'running' : 'home'; render(); }
+  else { if(msg) msg.textContent='違います'; const i=document.getElementById('gatePw'); if(i){ i.value=''; i.focus(); } }
 }
 function vHome(){
   const t=byId(S.currentTaskId);
@@ -337,7 +355,7 @@ function vHelp(){
   <div class="card"><b>🔇 音が出ない時</b><ul style="margin:6px 0 0;padding-left:1.4em" class="small">
     <li>スマホの音量を上げる（読み上げはスマホの音量が上限）</li><li>iPhoneの消音スイッチをOFF</li><li>開き直した直後は1回タップが必要</li><li>ヘッドホン中は「ピピッ」ON＋ピッの音量を最大に</li></ul></div>
   <div class="card"><b>🔒 データ</b><div class="small" style="margin-top:6px">記録はこのスマホの中だけ。どこにも送りません。機種変更は 設定 → 書き出し → 新しいスマホで読み込み。</div></div>
-  <div class="muted small center">友達に渡す時はこのページのURLを送るだけ。記録は混ざりません。</div>`;
+  `;
 }
 function vSettings(){
   const s=S.settings;
@@ -366,7 +384,7 @@ function vSettings(){
     <button class="mt" style="width:100%;color:var(--x)" data-act="wipe">全削除</button>
   </div>
   <div class="card"><b>使い方</b><ol style="margin:6px 0 0;padding-left:1.4em" class="small"><li>画面をつけたまま置く</li><li>試合開始で「開始」・終わったら「終了」</li><li>○△×だけでいい</li></ol></div>
-  <div class="muted small center">スプラ掛け声 v1.5</div>`;
+  <div class="muted small center">スプラ掛け声 v1.6</div>`;
 }
 
 /* ====== 操作 ====== */
@@ -375,6 +393,7 @@ document.addEventListener('click', e=>{
   const act=el.dataset.act, id=el.dataset.id;
   switch(act){
     case 'nav': view=el.dataset.v; selTask=null; editId=null; adding=false; render(); break;
+    case 'gate': tryUnlock(); break;
     case 'start': startMatch(); break;
     case 'resume': resumeMatch(); break;
     case 'end': endMatch(); break;
@@ -411,6 +430,7 @@ document.addEventListener('click', e=>{
   }
 });
 function val(id){ const el=document.getElementById(id); return el?el.value:''; }
+app.addEventListener('keydown', e=>{ if(e.key==='Enter' && e.target.id==='gatePw'){ e.preventDefault(); tryUnlock(); } });
 app.addEventListener('input', e=>{
   if (e.target.id==='taskText'){ const n=e.target.value.length; const c=document.getElementById('cnt'); if(c){ c.textContent=n+' 文字（20文字以内が目安）'; c.classList.toggle('over', n>20); } }
   if (e.target.id==='note' && pending) pending.note=e.target.value;
