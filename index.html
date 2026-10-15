@@ -24,7 +24,8 @@ html,body{margin:0; background:var(--bg); color:var(--fg); font-family:system-ui
 body{min-height:100dvh; display:flex; flex-direction:column; -webkit-user-select:none; user-select:none;}
 input,textarea,select{-webkit-user-select:text; user-select:text;}
 #app{flex:1; display:flex; flex-direction:column; max-width:520px; width:100%; margin:0 auto; padding:16px 16px calc(84px + var(--safe-b));}
-h1{font-size:20px; margin:0 0 12px; color:var(--muted); font-weight:600;}
+h1{font-size:20px; margin:0 0 12px; color:var(--muted); font-weight:600; display:flex; justify-content:space-between; align-items:center;}
+h1 a{font-size:15px; color:var(--accent); text-decoration:none; border:1px solid var(--line); border-radius:10px; padding:4px 10px; background:var(--card);}
 h2{font-size:18px; margin:20px 0 8px;}
 .card{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px;}
 .muted{color:var(--muted); font-size:15px;}
@@ -252,7 +253,7 @@ function vHome(){
   if(!t) return `<h1>スプラ掛け声</h1><div class="card"><div class="task-now">課題がありません</div><div class="muted">全部卒業しました🎓 「課題」から追加するか、もう一度やる課題を選んでください。</div></div>
     <button class="btn-accent" style="width:100%" data-act="nav" data-v="tasks">課題を選ぶ</button>`;
   const ok=okCount(t.id);
-  return `<h1>スプラ掛け声</h1>
+  return `<h1>スプラ掛け声 <a href="help.html">❓ 使い方</a></h1>
   <div class="card"><div class="muted">いまの課題</div><div class="task-now">${esc(t.text)}</div>
     <div class="small">直近${WINDOW}試合　○ <b>${ok}</b> ／ 目標 ${GOAL}</div>${dots(t.id)}</div>
   <button class="btn-accent btn-big" data-act="start">開始</button>`;
@@ -351,8 +352,8 @@ function vSettings(){
     <button class="mt" style="width:100%" data-act="resetTasks">課題を初期の5つに戻す</button>
     <button class="mt" style="width:100%;color:var(--x)" data-act="wipe">全削除</button>
   </div>
-  <div class="card"><b>使い方</b><ol style="margin:6px 0 0;padding-left:1.4em" class="small"><li>画面をつけたまま置く</li><li>試合開始で「開始」・終わったら「終了」</li><li>○△×だけでいい</li></ol></div>
-  <div class="muted small center">スプラ掛け声 v1.3</div>`;
+  <div class="card"><b>使い方</b><ol style="margin:6px 0 0;padding-left:1.4em" class="small"><li>画面をつけたまま置く</li><li>試合開始で「開始」・終わったら「終了」</li><li>○△×だけでいい</li></ol><a href="help.html" style="display:block;margin-top:8px;color:var(--accent)">くわしい使い方・ホーム画面に追加する手順 →</a></div>
+  <div class="muted small center">スプラ掛け声 v1.4</div>`;
 }
 
 /* ====== 操作 ====== */
