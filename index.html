@@ -112,13 +112,20 @@ function defaults(){
 function migrate(o){
   const d = defaults();
   if ((o.version||1) < 2 && Array.isArray(o.tasks) && (o.matches||[]).length===0 && o.tasks.length===OLD_DEFAULT_TASKS.length && o.tasks.every((t,i)=>t.text===OLD_DEFAULT_TASKS[i])) o = Object.assign({}, o, { tasks:d.tasks, currentTaskId:'t1' });
-  const s = Object.assign({}, d.settings, o.settings||{});
-  const tasks = Array.isArray(o.tasks) ? o.tasks.map((t,i)=>({ id:String(t.id||uid('t')), text:String(t.text||''), order:Number(t.order||i+1), status:['active','done','todo'].includes(t.status)?t.status:'todo', graduatedAt:t.graduatedAt||null, since:t.since||null })) : d.tasks;
-  const matches = Array.isArray(o.matches) ? o.matches.filter(m=>m&&m.taskId).map(m=>({ id:String(m.id||uid('m')), taskId:String(m.taskId), startedAt:m.startedAt||m.endedAt||nowISO(), endedAt:m.endedAt||nowISO(), calls:Number(m.calls||0), result:['o','d','x'].includes(m.result)?m.result:'d', win:['win','lose','none'].includes(m.win)?m.win:'none', note:String(m.note||'') })) : [];
+  const num=(v,lo,hi,def)=>{ v=Number(v); return Number.isFinite(v)?Math.min(hi,Math.max(lo,v)):def; };
+  const sid=(v,p)=>{ v=String(v==null?'':v); return /^[A-Za-z0-9_-]{1,40}$/.test(v)?v:uid(p); };
+  const so=o.settings||{}, ds=d.settings;
+  const s = { intervalMode: so.intervalMode==='fixed'?'fixed':'random', min:num(so.min,10,600,ds.min), max:num(so.max,10,600,ds.max), fixed:num(so.fixed,10,600,ds.fixed),
+    speak: so.speak==null?ds.speak:!!so.speak, beep: so.beep==null?ds.beep:!!so.beep, beepDouble: so.beepDouble==null?ds.beepDouble:!!so.beepDouble, repeat: !!so.repeat,
+    volume:num(so.volume,0.1,1,1), beepVolume:num(so.beepVolume,0.1,1,1), voiceName:String(so.voiceName||'').slice(0,100) };
+  if (s.min>s.max) [s.min,s.max]=[s.max,s.min];
+  const tasks = Array.isArray(o.tasks) ? o.tasks.filter(t=>t&&typeof t==='object').map((t,i)=>({ id:sid(t.id,'t'), text:String(t.text||'').slice(0,60), order:num(t.order,0,1e9,i+1), status:['active','done','todo'].includes(t.status)?t.status:'todo', graduatedAt:t.graduatedAt?String(t.graduatedAt):null, since:t.since?String(t.since):null })) : d.tasks;
+  { const seen=new Set(); tasks.forEach(t=>{ while(seen.has(t.id)) t.id=uid('t'); seen.add(t.id); }); tasks.sort((a,b)=>a.order-b.order).forEach((t,i)=>{ t.order=i+1; }); }
+  const matches = Array.isArray(o.matches) ? o.matches.filter(m=>m&&typeof m==='object'&&m.taskId).map(m=>({ id:sid(m.id,'m'), taskId:String(m.taskId).slice(0,40), startedAt:m.startedAt||m.endedAt||nowISO(), endedAt:m.endedAt||nowISO(), calls:num(m.calls,0,1e6,0), result:['o','d','x'].includes(m.result)?m.result:'d', win:['win','lose','none'].includes(m.win)?m.win:'none', note:String(m.note||'').slice(0,500) })) : [];
   const running = (o.running && o.running.taskId) ? { taskId:String(o.running.taskId), startedAt:o.running.startedAt||nowISO(), calls:Number(o.running.calls||0), nextAt:Number(o.running.nextAt||0) } : null;
   let currentTaskId = o.currentTaskId || null;
   if (!tasks.find(t=>t.id===currentTaskId)) currentTaskId = (tasks.find(t=>t.status==='active')||{}).id || null;
-  tasks.forEach(t=>{ if (t.status==='active' && t.id!==currentTaskId) t.status='todo'; });
+  tasks.forEach(t=>{ if (t.status==='active' && t.id!==currentTaskId) t.status='todo'; if (t.id===currentTaskId) t.status='active'; });
   return { version:2, settings:s, currentTaskId, tasks, matches, running };
 }
 function load(){ try{ const raw=localStorage.getItem(KEY); if(raw) return migrate(JSON.parse(raw)); }catch(e){ console.warn('load failed', e); } return defaults(); }
@@ -188,7 +195,7 @@ function unlockScreen(){ try{ wl && wl.release(); }catch(e){} wl=null; }
 
 /* ====== タイマー（setTimeoutの連鎖） ====== */
 let timer=null, clock=null, paused=false;
-function pickInterval(){ const s=S.settings; if(s.intervalMode==='fixed') return s.fixed*1000; const a=Math.min(s.min,s.max), b=Math.max(s.min,s.max); return (a + Math.random()*(b-a))*1000; }
+function pickInterval(){ const s=S.settings; let v = s.intervalMode==='fixed' ? Number(s.fixed) : (()=>{ const a=Math.min(s.min,s.max), b=Math.max(s.min,s.max); return a + Math.random()*(b-a); })(); if(!Number.isFinite(v)||v<10) v=60; return Math.min(600,v)*1000; }
 function scheduleNext(){ clearTimeout(timer); if(!S.running||paused) return; const delay=Math.max(0, S.running.nextAt-Date.now()); timer=setTimeout(tick, delay); }
 function tick(){
   if(!S.running||paused) return;
@@ -214,7 +221,7 @@ function endMatch(){
 }
 document.addEventListener('visibilitychange', ()=>{
   if (document.visibilityState!=='visible' || !S.running || paused) return;
-  lockScreen(); if (Date.now()>=S.running.nextAt) tick(); else scheduleNext(); clockTick();
+  lockScreen(); try{ actx && actx.state!=='running' && actx.resume(); }catch(e){} if (Date.now()>=S.running.nextAt) tick(); else scheduleNext(); clockTick();
 });
 
 /* ====== 描画 ====== */
@@ -283,7 +290,7 @@ function vGrad(){
 function taskEditor(t){
   const val = t ? t.text : '';
   return `<div class="mt"><input type="text" id="taskText" value="${esc(val)}" maxlength="60" placeholder="例：味方、映ってる？" data-act="count"><div class="count" id="cnt">${val.length} 文字（20文字以内が目安）</div>
-  <div class="row mt"><button class="btn-accent" data-act="${t?'saveEdit':'saveAdd'}" data-id="${t?t.id:''}">保存</button><button data-act="cancelEdit">キャンセル</button></div></div>`;
+  <div class="row mt"><button class="btn-accent" data-act="${t?'saveEdit':'saveAdd'}" data-id="${t?esc(t.id):''}">保存</button><button data-act="cancelEdit">キャンセル</button></div></div>`;
 }
 function vTasks(){
   const list = sortedTasks();
@@ -294,12 +301,12 @@ function vTasks(){
     let acts='';
     if (open && editId===t.id) acts = taskEditor(t);
     else if (open) acts = `<div class="acts">
-      ${t.status!=='active'?`<button data-act="setCurrent" data-id="${t.id}">${t.status==='done'?'🔁 もう一度やる':'▶ 今の課題にする'}</button>`:''}
-      <button data-act="edit" data-id="${t.id}">✏️ 編集</button>
-      <button data-act="up" data-id="${t.id}" ${i===0?'disabled':''}>↑ 上へ</button>
-      <button data-act="down" data-id="${t.id}" ${i===list.length-1?'disabled':''}>↓ 下へ</button>
-      <button data-act="del" data-id="${t.id}">🗑 削除</button></div>`;
-    return `<div class="item ${t.status==='active'?'active':''}"><div class="t" data-act="sel" data-id="${t.id}"><span>${ic}</span><span class="txt">${esc(t.text)}</span><span class="muted small">${t.status==='done'?'済':ok+'/'+GOAL}</span></div>${acts}</div>`;
+      ${t.status!=='active'?`<button data-act="setCurrent" data-id="${esc(t.id)}">${t.status==='done'?'🔁 もう一度やる':'▶ 今の課題にする'}</button>`:''}
+      <button data-act="edit" data-id="${esc(t.id)}">✏️ 編集</button>
+      <button data-act="up" data-id="${esc(t.id)}" ${i===0?'disabled':''}>↑ 上へ</button>
+      <button data-act="down" data-id="${esc(t.id)}" ${i===list.length-1?'disabled':''}>↓ 下へ</button>
+      <button data-act="del" data-id="${esc(t.id)}">🗑 削除</button></div>`;
+    return `<div class="item ${t.status==='active'?'active':''}"><div class="t" data-act="sel" data-id="${esc(t.id)}"><span>${ic}</span><span class="txt">${esc(t.text)}</span><span class="muted small">${t.status==='done'?'済':ok+'/'+GOAL}</span></div>${acts}</div>`;
   }).join('');
   return `<h1>課題（上から順に進む）</h1><div class="list">${items}</div>
   <div class="card mt">${adding ? taskEditor(null) : '<button style="width:100%" data-act="add">＋ 課題を追加</button>'}</div>
@@ -313,7 +320,7 @@ function vReview(){
       <div>直近${WINDOW}の○率 <b>${rr==null?'—':rr+'%'}</b></div><div></div>
       <div>○の試合の勝率 <b>${s.winO==null?'—':s.winO+'%'}</b></div><div>×の試合の勝率 <b>${s.winX==null?'—':s.winX+'%'}</b></div></div></div>`; }).join('');
   const hist = S.matches.slice().sort((a,b)=>a.endedAt<b.endedAt?1:-1).map(m=>{ const t=byId(m.taskId);
-    return `<div class="item hist" data-mid="${m.id}"><div class="l1"><span class="res ${m.result}">${RES[m.result]}</span><span>${WIN[m.win]}</span><span class="muted">${fmtD(m.endedAt)}</span><span class="muted" style="flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t?t.text:'（削除済み）')}</span></div>${m.note?`<div class="note">${esc(m.note)}</div>`:''}</div>`; }).join('');
+    return `<div class="item hist" data-mid="${esc(m.id)}"><div class="l1"><span class="res ${m.result}">${RES[m.result]}</span><span>${WIN[m.win]}</span><span class="muted">${fmtD(m.endedAt)}</span><span class="muted" style="flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t?t.text:'（削除済み）')}</span></div>${m.note?`<div class="note">${esc(m.note)}</div>`:''}</div>`; }).join('');
   return `<h1>振り返り</h1><div class="card"><b>全体</b>　試合数 ${all.n}　○率 ${all.okRate==null?'—':all.okRate+'%'}</div>
   ${tasks || '<div class="muted">まだ試合がありません</div>'}
   <h2>試合の履歴</h2><div class="muted small mb">行を長押しで削除</div><div class="list">${hist || '<div class="muted">まだありません</div>'}</div>`;
@@ -324,17 +331,17 @@ function vSettings(){
   return `<h1>設定</h1>
   <div class="card"><b>間隔</b>
     <div class="seg mt"><button class="${s.intervalMode==='random'?'sel':''}" data-act="imode" data-m="random">ランダム</button><button class="${s.intervalMode==='fixed'?'sel':''}" data-act="imode" data-m="fixed">固定</button></div>
-    ${s.intervalMode==='random' ? `<div class="row mt"><div><label class="f">最小（秒）</label><input type="number" inputmode="numeric" min="10" max="600" value="${s.min}" data-field="min"></div><div><label class="f">最大（秒）</label><input type="number" inputmode="numeric" min="10" max="600" value="${s.max}" data-field="max"></div></div>`
-      : `<label class="f">何秒ごと（10〜600）</label><input type="number" inputmode="numeric" min="10" max="600" value="${s.fixed}" data-field="fixed">
+    ${s.intervalMode==='random' ? `<div class="row mt"><div><label class="f">最小（秒）</label><input type="number" inputmode="numeric" min="10" max="600" value="${Number(s.min)}" data-field="min"></div><div><label class="f">最大（秒）</label><input type="number" inputmode="numeric" min="10" max="600" value="${Number(s.max)}" data-field="max"></div></div>`
+      : `<label class="f">何秒ごと（10〜600）</label><input type="number" inputmode="numeric" min="10" max="600" value="${Number(s.fixed)}" data-field="fixed">
          <div class="row mt">${[30,45,60,90,120].map(v=>`<button class="small ${s.fixed===v?'btn-accent':''}" data-act="fixedPreset" data-v="${v}">${v}秒</button>`).join('')}</div>`}
   </div>
   <div class="card"><b>音</b>
     <label class="toggle"><span>読み上げ</span><input type="checkbox" data-field="speak" ${s.speak?'checked':''}></label>
     <label class="toggle"><span>2回続けて読む</span><input type="checkbox" data-field="repeat" ${s.repeat?'checked':''}></label>
-    <label class="f">読み上げの音量 ${Math.round(s.volume*100)}%（100%＝端末の音量そのもの。もっと大きくしたい時は端末側の音量を上げてください）</label><input type="range" min="0.1" max="1" step="0.1" value="${s.volume}" data-field="volume">
+    <label class="f">読み上げの音量 ${Math.round(s.volume*100)}%（100%＝端末の音量そのもの。もっと大きくしたい時は端末側の音量を上げてください）</label><input type="range" min="0.1" max="1" step="0.1" value="${Number(s.volume)}" data-field="volume">
     <label class="toggle"><span>ピッ（電子音）</span><input type="checkbox" data-field="beep" ${s.beep?'checked':''}></label>
     <label class="toggle"><span>ピピッ（2連にして目立たせる）</span><input type="checkbox" data-field="beepDouble" ${s.beepDouble?'checked':''}></label>
-    <label class="f">ピッの音量 ${Math.round((s.beepVolume??1)*100)}%</label><input type="range" min="0.1" max="1" step="0.1" value="${s.beepVolume??1}" data-field="beepVolume">
+    <label class="f">ピッの音量 ${Math.round((s.beepVolume??1)*100)}%</label><input type="range" min="0.1" max="1" step="0.1" value="${Number(s.beepVolume??1)}" data-field="beepVolume">
     <label class="f">声</label><select data-field="voiceName"><option value="" ${!s.voiceName?'selected':''}>端末の既定</option>${vopts}</select>
     <button class="mt" style="width:100%" data-act="test">🔊 テスト再生（今の課題を読む）</button>
   </div>
@@ -345,7 +352,7 @@ function vSettings(){
     <button class="mt" style="width:100%;color:var(--x)" data-act="wipe">全削除</button>
   </div>
   <div class="card"><b>使い方</b><ol style="margin:6px 0 0;padding-left:1.4em" class="small"><li>画面をつけたまま置く</li><li>試合開始で「開始」・終わったら「終了」</li><li>○△×だけでいい</li></ol></div>
-  <div class="muted small center">スプラ掛け声 v1.2</div>`;
+  <div class="muted small center">スプラ掛け声 v1.3</div>`;
 }
 
 /* ====== 操作 ====== */
@@ -380,7 +387,7 @@ document.addEventListener('click', e=>{
       S.tasks=S.tasks.filter(x=>x.id!==id); if(S.currentTaskId===id){ S.currentTaskId=null; advanceAfter(t); } selTask=null; save(); render(); break; }
     case 'imode': S.settings.intervalMode=el.dataset.m; save(); render(); break;
     case 'fixedPreset': S.settings.fixed=parseInt(el.dataset.v,10); save(); render(); break;
-    case 'test': { ensureAudio(); const t=byId(S.currentTaskId); const txt=t?t.text:'課題がありません'; beep(); setTimeout(()=>speak(S.settings.repeat?txt+'。'+txt:txt, true), S.settings.beep?BEEP_LEN():0); break; }
+    case 'test': { ensureAudio(); const t=byId(S.currentTaskId); const txt=t?t.text:'課題がありません'; speak(S.settings.repeat?txt+'。'+txt:txt, true); beep(); break; }
     case 'resetTasks': { if(!confirm('課題を初期の5つ（イカランプ見て／スペシャル枚数／仲間アシストして／前線上げて／敵を探して）に戻します。今の課題一覧は消え、試合の記録は「削除済み」の課題として残ります。よろしいですか？')) return;
       S.tasks = DEFAULT_TASKS.map((text,i)=>({ id:uid('t'), text, order:i+1, status:i===0?'active':'todo', graduatedAt:null, since:null })); S.currentTaskId=S.tasks[0].id; save(); view='home'; render(); break; }
     case 'export': exportJSON(); break;
@@ -437,11 +444,13 @@ function importJSON(file){
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="40" fill="#f0741e"/><text x="96" y="124" font-size="92" font-family="system-ui,sans-serif" font-weight="700" fill="#fff" text-anchor="middle">声</text></svg>`;
   const svgURI = 'data:image/svg+xml,'+encodeURIComponent(svg);
   const icon=document.createElement('link'); icon.rel='icon'; icon.href=svgURI; document.head.appendChild(icon);
-  try{ const c=document.createElement('canvas'); c.width=c.height=180; const g=c.getContext('2d'); g.fillStyle='#f0741e'; g.beginPath(); g.roundRect(0,0,180,180,38); g.fill();
-    g.fillStyle='#fff'; g.font='700 86px system-ui,sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('声',90,96);
-    const a=document.createElement('link'); a.rel='apple-touch-icon'; a.href=c.toDataURL('image/png'); document.head.appendChild(a); }catch(e){}
-  const manifest = { name:'スプラ掛け声', short_name:'掛け声', start_url:location.href.split('#')[0], display:'standalone', background_color:'#fafafa', theme_color:'#fafafa', lang:'ja',
-    icons:[{ src:svgURI, sizes:'any', type:'image/svg+xml', purpose:'any' }] };
+  const png = size => { const c=document.createElement('canvas'); c.width=c.height=size; const g=c.getContext('2d'); g.fillStyle='#f0741e';
+    if (g.roundRect){ g.beginPath(); g.roundRect(0,0,size,size,size*0.21); g.fill(); } else g.fillRect(0,0,size,size);
+    g.fillStyle='#fff'; g.font='700 '+Math.round(size*0.48)+'px system-ui,sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('声',size/2,size*0.53); return c.toDataURL('image/png'); };
+  const icons=[{ src:svgURI, sizes:'any', type:'image/svg+xml', purpose:'any' }];
+  try{ const a=document.createElement('link'); a.rel='apple-touch-icon'; a.href=png(180); document.head.appendChild(a);
+    icons.push({ src:png(192), sizes:'192x192', type:'image/png', purpose:'any' }, { src:png(512), sizes:'512x512', type:'image/png', purpose:'any maskable' }); }catch(e){}
+  const manifest = { name:'スプラ掛け声', short_name:'掛け声', start_url:location.href.split('#')[0], display:'standalone', background_color:'#fafafa', theme_color:'#fafafa', lang:'ja', icons };
   const m=document.createElement('link'); m.rel='manifest'; m.href='data:application/manifest+json,'+encodeURIComponent(JSON.stringify(manifest)); document.head.appendChild(m);
 })();
 
