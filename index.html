@@ -333,6 +333,7 @@ function vSettings(){
   <div class="card"><b>データ</b><div class="muted small">データはこの端末の中だけに保存されます</div>
     <div class="row mt"><button data-act="export">書き出し</button><button data-act="import">読み込み</button></div>
     <input type="file" id="file" accept="application/json,.json" class="hidden">
+    <button class="mt" style="width:100%" data-act="resetTasks">課題を初期の5つに戻す</button>
     <button class="mt" style="width:100%;color:var(--x)" data-act="wipe">全削除</button>
   </div>
   <div class="card"><b>使い方</b><ol style="margin:6px 0 0;padding-left:1.4em" class="small"><li>画面をつけたまま置く</li><li>試合開始で「開始」・終わったら「終了」</li><li>○△×だけでいい</li></ol></div>
@@ -372,6 +373,8 @@ document.addEventListener('click', e=>{
     case 'imode': S.settings.intervalMode=el.dataset.m; save(); render(); break;
     case 'fixedPreset': S.settings.fixed=parseInt(el.dataset.v,10); save(); render(); break;
     case 'test': { ensureAudio(); const t=byId(S.currentTaskId); beep(); setTimeout(()=>speak(t?t.text:'課題がありません', true), S.settings.beep?260:0); break; }
+    case 'resetTasks': { if(!confirm('課題を初期の5つ（イカランプ見て／スペシャル枚数／仲間アシストして／前線上げて／敵を探して）に戻します。今の課題一覧は消え、試合の記録は「削除済み」の課題として残ります。よろしいですか？')) return;
+      S.tasks = DEFAULT_TASKS.map((text,i)=>({ id:uid('t'), text, order:i+1, status:i===0?'active':'todo', graduatedAt:null, since:null })); S.currentTaskId=S.tasks[0].id; save(); view='home'; render(); break; }
     case 'export': exportJSON(); break;
     case 'import': document.getElementById('file').click(); break;
     case 'wipe': { if(!confirm('全てのデータを削除します。よろしいですか？')) return; if(!confirm('本当に削除しますか？ この操作は取り消せません。')) return;
