@@ -44,7 +44,7 @@ button:disabled{opacity:.45; cursor:default;}
 .dot{width:24px; height:24px; border-radius:50%; background:var(--empty); display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-weight:700;}
 .dot.o{background:var(--o);} .dot.d{background:var(--d);} .dot.x{background:var(--x);}
 nav{position:fixed; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--line); display:flex; justify-content:space-around; padding:6px 0 calc(6px + var(--safe-b));}
-nav button{border:none; background:none; min-height:52px; min-width:72px; font-size:14px; color:var(--muted); display:flex; flex-direction:column; align-items:center; gap:2px; border-radius:10px;}
+nav button{border:none; background:none; min-height:52px; min-width:58px; padding:4px 6px; font-size:14px; color:var(--muted); display:flex; flex-direction:column; align-items:center; gap:2px; border-radius:10px;}
 nav button .ic{font-size:22px;}
 nav button.on{color:var(--accent); font-weight:700;}
 .big-time{font-size:56px; font-weight:800; font-variant-numeric:tabular-nums; text-align:center; margin:8px 0 0;}
@@ -242,9 +242,9 @@ function dots(taskId){
   return h+'</div>';
 }
 function render(){
-  const V = { home:vHome, running:vRunning, record:vRecord, tasks:vTasks, review:vReview, settings:vSettings }[view];
+  const V = { home:vHome, running:vRunning, record:vRecord, tasks:vTasks, review:vReview, help:vHelp, settings:vSettings }[view];
   app.innerHTML = V() + (grad ? vGrad() : '');
-  nav.innerHTML = (view==='running'||view==='record') ? '' : [['home','🏠','ホーム'],['tasks','🪜','課題'],['review','📊','振り返り'],['settings','⚙️','設定']].map(([k,ic,l])=>`<button data-act="nav" data-v="${k}" class="${view===k?'on':''}"><span class="ic">${ic}</span>${l}</button>`).join('');
+  nav.innerHTML = (view==='running'||view==='record') ? '' : [['home','🏠','ホーム'],['tasks','🪜','課題'],['review','📊','振り返り'],['help','❓','使い方'],['settings','⚙️','設定']].map(([k,ic,l])=>`<button data-act="nav" data-v="${k}" class="${view===k?'on':''}"><span class="ic">${ic}</span>${l}</button>`).join('');
   nav.classList.toggle('hidden', view==='running'||view==='record');
   if (view==='running') updateRunning();
 }
@@ -253,7 +253,7 @@ function vHome(){
   if(!t) return `<h1>スプラ掛け声</h1><div class="card"><div class="task-now">課題がありません</div><div class="muted">全部卒業しました🎓 「課題」から追加するか、もう一度やる課題を選んでください。</div></div>
     <button class="btn-accent" style="width:100%" data-act="nav" data-v="tasks">課題を選ぶ</button>`;
   const ok=okCount(t.id);
-  return `<h1>スプラ掛け声 <a href="help.html">❓ 使い方</a></h1>
+  return `<h1>スプラ掛け声</h1>
   <div class="card"><div class="muted">いまの課題</div><div class="task-now">${esc(t.text)}</div>
     <div class="small">直近${WINDOW}試合　○ <b>${ok}</b> ／ 目標 ${GOAL}</div>${dots(t.id)}</div>
   <button class="btn-accent btn-big" data-act="start">開始</button>`;
@@ -326,6 +326,19 @@ function vReview(){
   ${tasks || '<div class="muted">まだ試合がありません</div>'}
   <h2>試合の履歴</h2><div class="muted small mb">行を長押しで削除</div><div class="list">${hist || '<div class="muted">まだありません</div>'}</div>`;
 }
+function vHelp(){
+  return `<h1>使い方</h1>
+  <div class="card"><b>3行で</b><ol style="margin:6px 0 0;padding-left:1.4em">
+    <li>画面をつけたまま、近くに置く</li><li>試合が始まったら「開始」、終わったら「終了」</li><li>「課題できた？」に ○△× を1つ押す。これだけ</li></ol></div>
+  <div class="card"><b>何が起きる？</b><div class="small mt" style="margin-top:6px">ランダムな間隔でピピッと鳴って、今の課題を1つ読み上げます。鳴ったらその場でやる。<br>その課題が<b>直近10試合で○7つ</b>になったら卒業、次の課題へ。</div></div>
+  <div class="card"><b>📱 ホーム画面に追加（最初に1回）</b><ul style="margin:6px 0 0;padding-left:1.4em" class="small">
+    <li><b>iPhone</b>：Safariで開く → 共有ボタン →「ホーム画面に追加」</li><li><b>Android</b>：Chromeで開く → ︙ →「ホーム画面に追加」</li></ul>
+    <div class="muted small" style="margin-top:6px">全画面で起動でき、データも消えにくくなります</div></div>
+  <div class="card"><b>🔇 音が出ない時</b><ul style="margin:6px 0 0;padding-left:1.4em" class="small">
+    <li>スマホの音量を上げる（読み上げはスマホの音量が上限）</li><li>iPhoneの消音スイッチをOFF</li><li>開き直した直後は1回タップが必要</li><li>ヘッドホン中は「ピピッ」ON＋ピッの音量を最大に</li></ul></div>
+  <div class="card"><b>🔒 データ</b><div class="small" style="margin-top:6px">記録はこのスマホの中だけ。どこにも送りません。機種変更は 設定 → 書き出し → 新しいスマホで読み込み。</div></div>
+  <div class="muted small center">友達に渡す時はこのページのURLを送るだけ。記録は混ざりません。</div>`;
+}
 function vSettings(){
   const s=S.settings;
   const vopts = voices.length ? voices.map(v=>`<option value="${esc(v.name)}" ${v.name===s.voiceName?'selected':''}>${esc(v.name)}</option>`).join('') : '<option value="">（日本語の声が見つかりません）</option>';
@@ -352,8 +365,8 @@ function vSettings(){
     <button class="mt" style="width:100%" data-act="resetTasks">課題を初期の5つに戻す</button>
     <button class="mt" style="width:100%;color:var(--x)" data-act="wipe">全削除</button>
   </div>
-  <div class="card"><b>使い方</b><ol style="margin:6px 0 0;padding-left:1.4em" class="small"><li>画面をつけたまま置く</li><li>試合開始で「開始」・終わったら「終了」</li><li>○△×だけでいい</li></ol><a href="help.html" style="display:block;margin-top:8px;color:var(--accent)">くわしい使い方・ホーム画面に追加する手順 →</a></div>
-  <div class="muted small center">スプラ掛け声 v1.4</div>`;
+  <div class="card"><b>使い方</b><ol style="margin:6px 0 0;padding-left:1.4em" class="small"><li>画面をつけたまま置く</li><li>試合開始で「開始」・終わったら「終了」</li><li>○△×だけでいい</li></ol></div>
+  <div class="muted small center">スプラ掛け声 v1.5</div>`;
 }
 
 /* ====== 操作 ====== */
