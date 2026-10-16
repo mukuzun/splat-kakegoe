@@ -11,6 +11,10 @@
 <meta name="apple-mobile-web-app-title" content="掛け声">
 <meta name="description" content="スプラトゥーン3のプレー中にランダム間隔で課題を読み上げる練習アプリ">
 <title>スプラ掛け声</title>
+<meta name="robots" content="noindex">
+<!-- Google tag (gtag.js) ずんだもchサイトと同じプロパティ -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-B6Z4QQGQK6"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-B6Z4QQGQK6');</script>
 <style>
 :root{
   color-scheme: light;
@@ -208,6 +212,7 @@ function tick(){
 }
 function clockTick(){ clearTimeout(clock); if(!S.running) return; updateRunning(); clock=setTimeout(clockTick, 1000); }
 function startMatch(){
+  try{ gtag('event','app_start'); }catch(e){}
   const t=byId(S.currentTaskId); if(!t) return;
   ensureAudio();
   speak(t.text); beep();            // ユーザー操作の同期処理内で最初の speak（iOS対策）。2回読みは次回以降
@@ -228,7 +233,7 @@ document.addEventListener('visibilitychange', ()=>{
 });
 
 /* ====== 描画 ====== */
-let unlocked=false; try{ unlocked = localStorage.getItem(UNLOCK_KEY)==='1'; }catch(e){}
+let unlocked=true;   // 2026-10-16: 合言葉ゲート廃止（zundamoch.com に置くため）。コードは残すが常に解錠
 let view = !unlocked ? 'gate' : (S.running ? 'running' : 'home');
 if (S.running) paused = true;    // 再読み込み後はタップで音を再開
 let pending=null, grad=null, selTask=null, editId=null, adding=false, pressTimer=null;
@@ -329,7 +334,10 @@ function vTasks(){
   }).join('');
   return `<h1>課題（上から順に進む）</h1><div class="list">${items}</div>
   <div class="card mt">${adding ? taskEditor(null) : '<button style="width:100%" data-act="add">＋ 課題を追加</button>'}</div>
-  <div class="muted small">🎓 卒業済み　▶ 今ここ　○ 未着手。タップで操作。</div>`;
+  <div class="muted small">🎓 卒業済み　▶ 今ここ　○ 未着手。タップで操作。</div>
+  <div class="card mt" style="background:var(--accent-soft);border-color:var(--accent-soft)"><b>課題が決まらない人へ</b>
+    <div class="small" style="margin-top:6px">このアプリは課題を回す道具です。課題そのものは、管理人がリプレイを見て1つに絞ります。</div>
+    <a href="https://zundamoch.com/#plans" data-act="coach" style="display:block;margin-top:10px;padding:12px;border-radius:12px;background:var(--accent);color:#fff;font-weight:700;text-align:center;text-decoration:none">コーチングを見る →</a></div>`;
 }
 function vReview(){
   const all = stats(S.matches);
@@ -354,7 +362,7 @@ function vHelp(){
     <div class="muted small" style="margin-top:6px">全画面で起動でき、データも消えにくくなります</div></div>
   <div class="card"><b>🔇 音が出ない時</b><ul style="margin:6px 0 0;padding-left:1.4em" class="small">
     <li>スマホの音量を上げる（読み上げはスマホの音量が上限）</li><li>iPhoneの消音スイッチをOFF</li><li>開き直した直後は1回タップが必要</li><li>ヘッドホン中は「ピピッ」ON＋ピッの音量を最大に</li></ul></div>
-  <div class="card"><b>🔒 データ</b><div class="small" style="margin-top:6px">記録はこのスマホの中だけ。どこにも送りません。機種変更は 設定 → 書き出し → 新しいスマホで読み込み。</div></div>
+  <div class="card"><b>🔒 データ</b><div class="small" style="margin-top:6px">記録はこのスマホの中だけ。機種変更は 設定 → 書き出し → 新しいスマホで読み込み。</div></div>
   `;
 }
 function vSettings(){
@@ -384,7 +392,7 @@ function vSettings(){
     <button class="mt" style="width:100%;color:var(--x)" data-act="wipe">全削除</button>
   </div>
   <div class="card"><b>使い方</b><ol style="margin:6px 0 0;padding-left:1.4em" class="small"><li>画面をつけたまま置く</li><li>試合開始で「開始」・終わったら「終了」</li><li>○△×だけでいい</li></ol></div>
-  <div class="muted small center">スプラ掛け声 v1.7</div>`;
+  <div class="muted small center">スプラ掛け声 v1.8</div>`;
 }
 
 /* ====== 操作 ====== */
@@ -394,6 +402,7 @@ document.addEventListener('click', e=>{
   switch(act){
     case 'nav': view=el.dataset.v; selTask=null; editId=null; adding=false; render(); break;
     case 'gate': tryUnlock(); break;
+    case 'coach': try{ gtag('event','coach_cta',{cta_pos:'app'}); }catch(e){} return; // リンク遷移はそのまま
     case 'start': startMatch(); break;
     case 'resume': resumeMatch(); break;
     case 'end': endMatch(); break;
